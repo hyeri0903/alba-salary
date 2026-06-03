@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Worker, WorkShift } from "@/types";
 import { computeHours } from "@/lib/salary";
+import { useProfile } from "@/hooks/useProfile";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 
@@ -15,6 +16,7 @@ interface ShiftFormProps {
 type InputMode = "time" | "manual";
 
 export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProps) {
+  const { isBoss } = useProfile();
   const today = new Date().toISOString().split("T")[0];
   const [workerId, setWorkerId] = useState(workers[0]?.id ?? "");
   const [date, setDate] = useState(today);
@@ -67,23 +69,25 @@ export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProp
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">알바생</label>
-        <select
-          value={workerId}
-          onChange={(e) => setWorkerId(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          {workers.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} ({w.position})
-            </option>
-          ))}
-        </select>
-        {errors.workerId && (
-          <span className="text-xs text-red-500">{errors.workerId}</span>
-        )}
-      </div>
+      {isBoss && (
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">알바생</label>
+          <select
+            value={workerId}
+            onChange={(e) => setWorkerId(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {workers.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name} ({w.position})
+              </option>
+            ))}
+          </select>
+          {errors.workerId && (
+            <span className="text-xs text-red-500">{errors.workerId}</span>
+          )}
+        </div>
+      )}
 
       <Input
         label="날짜"

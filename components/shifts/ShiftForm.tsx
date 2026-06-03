@@ -9,23 +9,27 @@ import Button from "@/components/ui/Button";
 
 interface ShiftFormProps {
   workers: Worker[];
+  initial?: WorkShift;
   onSubmit: (data: Omit<WorkShift, "id" | "createdAt">) => void;
   onCancel: () => void;
 }
 
 type InputMode = "time" | "manual";
 
-export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProps) {
+export default function ShiftForm({ workers, initial, onSubmit, onCancel }: ShiftFormProps) {
   const { isBoss } = useProfile();
   const today = new Date().toISOString().split("T")[0];
-  const [workerId, setWorkerId] = useState(workers[0]?.id ?? "");
-  const [date, setDate] = useState(today);
-  const [mode, setMode] = useState<InputMode>("time");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("18:00");
-  const [breakMinutes, setBreakMinutes] = useState("60");
-  const [manualHours, setManualHours] = useState("");
-  const [note, setNote] = useState("");
+
+  const initMode: InputMode = initial?.startTime ? "time" : "manual";
+
+  const [workerId, setWorkerId] = useState(initial?.workerId ?? workers[0]?.id ?? "");
+  const [date, setDate] = useState(initial?.date ?? today);
+  const [mode, setMode] = useState<InputMode>(initMode);
+  const [startTime, setStartTime] = useState(initial?.startTime ?? "09:00");
+  const [endTime, setEndTime] = useState(initial?.endTime ?? "18:00");
+  const [breakMinutes, setBreakMinutes] = useState(String(initial?.breakMinutes ?? 60));
+  const [manualHours, setManualHours] = useState(initial?.totalHours ? String(initial.totalHours) : "");
+  const [note, setNote] = useState(initial?.note ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -45,16 +49,12 @@ export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
-      return;
-    }
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     const breakMin = Number(breakMinutes) || 0;
-    const totalHours =
-      mode === "time"
-        ? computeHours(startTime, endTime, breakMin)
-        : Number(manualHours);
+    const totalHours = mode === "time"
+      ? computeHours(startTime, endTime, breakMin)
+      : Number(manualHours);
 
     onSubmit({
       workerId,
@@ -83,9 +83,7 @@ export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProp
               </option>
             ))}
           </select>
-          {errors.workerId && (
-            <span className="text-xs text-red-500">{errors.workerId}</span>
-          )}
+          {errors.workerId && <span className="text-xs text-red-500">{errors.workerId}</span>}
         </div>
       )}
 
@@ -100,57 +98,29 @@ export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProp
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium text-gray-700">입력 방식</label>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("time")}
-            className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-              mode === "time"
-                ? "bg-indigo-600 text-white border-indigo-600"
-                : "bg-white text-gray-600 border-gray-300"
-            }`}
-          >
-            시작/종료 시간
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("manual")}
-            className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-              mode === "manual"
-                ? "bg-indigo-600 text-white border-indigo-600"
-                : "bg-white text-gray-600 border-gray-300"
-            }`}
-          >
-            시간 직접 입력
-          </button>
+          {(["time", "manual"] as InputMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                mode === m ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-600 border-gray-300"
+              }`}
+            >
+              {m === "time" ? "시작/종료 시간" : "시간 직접 입력"}
+            </button>
+          ))}
         </div>
       </div>
 
       {mode === "time" ? (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="시작 시간"
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-            />
-            <Input
-              label="종료 시간"
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-            />
+            <Input label="시작 시간" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <Input label="종료 시간" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </div>
-          <Input
-            label="휴게 시간 (분)"
-            type="number"
-            value={breakMinutes}
-            onChange={(e) => setBreakMinutes(e.target.value)}
-            min={0}
-          />
-          {errors.time && (
-            <span className="text-xs text-red-500">{errors.time}</span>
-          )}
+          <Input label="휴게 시간 (분)" type="number" value={breakMinutes} onChange={(e) => setBreakMinutes(e.target.value)} min={0} />
+          {errors.time && <span className="text-xs text-red-500">{errors.time}</span>}
         </>
       ) : (
         <Input
@@ -177,10 +147,8 @@ export default function ShiftForm({ workers, onSubmit, onCancel }: ShiftFormProp
       </div>
 
       <div className="flex gap-3 justify-end pt-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          취소
-        </Button>
-        <Button type="submit">추가하기</Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>취소</Button>
+        <Button type="submit">{initial ? "수정하기" : "추가하기"}</Button>
       </div>
     </form>
   );

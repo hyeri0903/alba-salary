@@ -23,8 +23,10 @@ type Action =
   | { type: "UPDATE_WORKER"; worker: Worker }
   | { type: "DELETE_WORKER"; id: string }
   | { type: "ADD_SHIFT"; shift: WorkShift }
+  | { type: "UPDATE_SHIFT"; shift: WorkShift }
   | { type: "DELETE_SHIFT"; id: string }
   | { type: "ADD_WORKPLACE"; workplace: Workplace }
+  | { type: "UPDATE_WORKPLACE"; workplace: Workplace }
   | { type: "SET_ACTIVE_WORKPLACE"; id: string }
   | { type: "SET_PROFILE"; profile: UserProfile }
   | { type: "RESET_PROFILE" };
@@ -65,6 +67,8 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "ADD_SHIFT":
       return { ...state, shifts: [...state.shifts, action.shift] };
+    case "UPDATE_SHIFT":
+      return { ...state, shifts: state.shifts.map((s) => s.id === action.shift.id ? action.shift : s) };
     case "DELETE_SHIFT":
       return { ...state, shifts: state.shifts.filter((s) => s.id !== action.id) };
     case "ADD_WORKPLACE":
@@ -74,6 +78,13 @@ function reducer(state: AppState, action: Action): AppState {
         profile: state.profile
           ? { ...state.profile, activeWorkplaceId: action.workplace.id }
           : state.profile,
+      };
+    case "UPDATE_WORKPLACE":
+      return {
+        ...state,
+        workplaces: state.workplaces.map((w) =>
+          w.id === action.workplace.id ? action.workplace : w
+        ),
       };
     case "SET_ACTIVE_WORKPLACE":
       return {

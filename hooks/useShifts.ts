@@ -15,6 +15,10 @@ export function useShifts() {
     dispatch({ type: "ADD_SHIFT", shift });
   };
 
+  const updateShift = (shift: WorkShift) => {
+    dispatch({ type: "UPDATE_SHIFT", shift });
+  };
+
   const deleteShift = (id: string) => {
     dispatch({ type: "DELETE_SHIFT", id });
   };
@@ -23,6 +27,7 @@ export function useShifts() {
     shifts: state.shifts,
     isLoaded: state.isLoaded,
     addShift,
+    updateShift,
     deleteShift,
   };
 }

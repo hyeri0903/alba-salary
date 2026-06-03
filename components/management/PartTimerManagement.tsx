@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { WorkShift, Worker } from "@/types";
 import { useShifts } from "@/hooks/useShifts";
 import { useWorkers } from "@/hooks/useWorkers";
@@ -14,11 +14,15 @@ import ShiftForm from "@/components/shifts/ShiftForm";
 import Button from "@/components/ui/Button";
 
 export default function PartTimerManagement() {
-  const { profile } = useProfile();
-  const { shifts, addShift, deleteShift } = useShifts();
-  const { workers, addWorker, updateWorker } = useWorkers();
+  const { profile, workplaces } = useProfile();
+  const { shifts, addShift, updateShift, deleteShift } = useShifts();
+  const { workers, updateWorker } = useWorkers();
   const { dispatch } = useAppContext();
+
+  const defaultWorkplaceId = workplaces[0]?.id ?? "";
+  const [selectedWorkplaceId, setSelectedWorkplaceId] = useState(defaultWorkplaceId);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<WorkShift | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkShift | null>(null);
   const [monthFilter, setMonthFilter] = useState(toYearMonth());
   const [editingRate, setEditingRate] = useState(false);
@@ -28,13 +32,26 @@ export default function PartTimerManagement() {
   const myWorker = workers.find((w) => w.id === profile?.workerId);
   const hourlyRate = myWorker?.hourlyRate ?? profile?.hourlyRate ?? 0;
 
-  const myShifts = shifts.filter((s) => s.workerId === myWorker?.id);
+  const myShifts = useMemo(() =>
+    shifts.filter((s) => {
+      if (s.workerId !== myWorker?.id) return false;
+      return selectedWorkplaceId
+        ? (s.workplaceId === selectedWorkplaceId || (!s.workplaceId && selectedWorkplaceId === defaultWorkplaceId))
+        : true;
+    }), [shifts, myWorker?.id, selectedWorkplaceId, defaultWorkplaceId]);
+
   const months = Array.from(new Set(myShifts.map((s) => s.date.slice(0, 7)))).sort((a, b) => b.localeCompare(a));
   const allMonths = months.includes(toYearMonth()) ? months : [toYearMonth(), ...months];
-  const filtered = myShifts.filter((s) => s.date.startsWith(monthFilter)).sort((a, b) => b.date.localeCompare(a.date));
+  const filtered = myShifts
+    .filter((s) => s.date.startsWith(monthFilter))
+    .sort((a, b) => {
+      if (b.date !== a.date) return b.date.localeCompare(a.date);
+      const aTime = a.startTime || a.createdAt;
+      const bTime = b.startTime || b.createdAt;
+      return bTime.localeCompare(aTime);
+    });
 
   const handleOpenAdd = () => {
-    // myWorker가 있으면 바로 사용, 없으면 즉시 생성해서 로컬 state에 저장
     if (myWorker) {
       setModalWorker(myWorker);
     } else {
@@ -45,10 +62,8 @@ export default function PartTimerManagement() {
         hourlyRate: profile?.hourlyRate ?? 10030,
         createdAt: new Date().toISOString(),
       };
-      addWorker(newWorker);
-      if (profile) {
-        dispatch({ type: "SET_PROFILE", profile: { ...profile, workerId: newWorker.id } });
-      }
+      dispatch({ type: "ADD_WORKER", worker: newWorker });
+      if (profile) dispatch({ type: "SET_PROFILE", profile: { ...profile, workerId: newWorker.id } });
       setModalWorker(newWorker);
     }
     setIsAddOpen(true);
@@ -68,19 +83,45 @@ export default function PartTimerManagement() {
         <Button size="sm" onClick={handleOpenAdd}>+ 근무 추가</Button>
       </div>
 
-      <select
-        value={monthFilter}
-        onChange={(e) => setMonthFilter(e.target.value)}
-        className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      >
-        {allMonths.map((m) => (
-          <option key={m} value={m}>{formatYearMonth(m)}</option>
-        ))}
-      </select>
+      {/* 근무지 + 월 필터 */}
+      <div className="flex gap-2">
+        <select
+          value={selectedWorkplaceId}
+          onChange={(e) => setSelectedWorkplaceId(e.target.value)}
+          className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          {workplaces.length === 0
+            ? <option value="">근무지 없음</option>
+            : workplaces.map((wp) => (
+              <option key={wp.id} value={wp.id}>{wp.name}</option>
+            ))
+          }
+        </select>
+        <select
+          value={monthFilter}
+          onChange={(e) => setMonthFilter(e.target.value)}
+          className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          {allMonths.map((m) => (
+            <option key={m} value={m}>{formatYearMonth(m)}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* 월별 총 예상 급여 */}
+      {(() => {
+        const monthTotal = filtered.reduce((sum, s) => sum + computeSalary(s.totalHours, hourlyRate), 0);
+        return (
+          <div className="bg-indigo-50 rounded-xl px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-indigo-600 font-medium">{formatYearMonth(monthFilter)} 총 예상 급여</span>
+            <span className="text-base font-bold text-indigo-700">{formatCurrency(monthTotal)}</span>
+          </div>
+        );
+      })()}
 
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border border-dashed border-gray-200 py-12 text-center">
-          <p className="text-gray-400 text-sm">이번 달 근무 기록이 없습니다</p>
+          <p className="text-gray-400 text-sm">근무 기록이 없습니다</p>
         </div>
       ) : filtered.map((shift) => {
         const salary = computeSalary(shift.totalHours, hourlyRate);
@@ -97,6 +138,7 @@ export default function PartTimerManagement() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-indigo-600">{formatCurrency(salary)}</span>
+                <Button variant="ghost" size="sm" onClick={() => { setModalWorker(myWorker ?? null); setEditTarget(shift); }}>수정</Button>
                 <Button variant="danger" size="sm" onClick={() => setDeleteTarget(shift)}>삭제</Button>
               </div>
             </div>
@@ -107,7 +149,6 @@ export default function PartTimerManagement() {
       {/* 근무 추가 모달 */}
       <Modal isOpen={isAddOpen} onClose={() => { setIsAddOpen(false); setEditingRate(false); setModalWorker(null); }} title="근무 추가">
         <div className="flex flex-col gap-4">
-          {/* 상단 시급 카드 */}
           <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 font-medium">시급</p>
@@ -141,16 +182,34 @@ export default function PartTimerManagement() {
               </button>
             )}
           </div>
-
-          {/* 근무 입력 폼 */}
           {modalWorker && (
             <ShiftForm
               workers={[modalWorker]}
-              onSubmit={(data) => { addShift(data); setIsAddOpen(false); setEditingRate(false); setModalWorker(null); }}
+              onSubmit={(data) => { addShift({ ...data, workplaceId: selectedWorkplaceId }); setIsAddOpen(false); setEditingRate(false); setModalWorker(null); }}
               onCancel={() => { setIsAddOpen(false); setEditingRate(false); setModalWorker(null); }}
             />
           )}
         </div>
+      </Modal>
+
+      {/* 근무 수정 모달 */}
+      <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title="근무 수정">
+        {editTarget && modalWorker && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-gray-500 font-medium">시급</p>
+              <p className="text-base font-bold text-gray-900 mt-0.5">
+                {hourlyRate > 0 ? formatCurrency(hourlyRate) : "미설정"}
+              </p>
+            </div>
+            <ShiftForm
+              workers={[modalWorker]}
+              initial={editTarget}
+              onSubmit={(data) => { updateShift({ ...editTarget, ...data, workplaceId: selectedWorkplaceId }); setEditTarget(null); }}
+              onCancel={() => setEditTarget(null)}
+            />
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog

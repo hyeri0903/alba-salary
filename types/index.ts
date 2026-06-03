@@ -9,6 +9,7 @@ export interface Worker {
 export interface WorkShift {
   id: string;
   workerId: string;
+  workplaceId?: string; // 근무지 (기존 데이터 호환을 위해 optional)
   date: string;        // "YYYY-MM-DD"
   startTime: string;   // "HH:MM"
   endTime: string;     // "HH:MM"

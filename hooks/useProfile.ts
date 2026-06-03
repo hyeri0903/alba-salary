@@ -10,6 +10,10 @@ export function useProfile() {
     (w) => w.id === state.profile?.activeWorkplaceId
   ) ?? null;
 
+  const updateWorkplace = (workplace: Workplace) => {
+    dispatch({ type: "UPDATE_WORKPLACE", workplace });
+  };
+
   const addWorkplace = (name: string) => {
     const workplace: Workplace = {
       id: crypto.randomUUID(),
@@ -40,6 +44,7 @@ export function useProfile() {
     isBoss: state.profile?.role === "boss",
     isPartTimer: state.profile?.role === "part-timer",
     addWorkplace,
+    updateWorkplace,
     setActiveWorkplace,
     setProfile,
     resetProfile,

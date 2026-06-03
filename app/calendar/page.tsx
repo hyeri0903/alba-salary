@@ -95,10 +95,9 @@ export default function CalendarPage() {
         {entries.map(([wpId, hrs]) => {
           const realId = wpId === "__none__" ? undefined : wpId;
           const { bg, text } = getColor(realId);
-          const wpName = workplaces.find((w) => w.id === realId)?.name ?? "근무지";
           return (
-            <span key={wpId} className={`text-[9px] ${bg} ${text} rounded px-1 leading-4 truncate block`}>
-              {wpName.slice(0, 3)} {hrs.toFixed(1)}h
+            <span key={wpId} className={`text-[9px] ${bg} ${text} rounded px-1 leading-4 block text-center`}>
+              {hrs.toFixed(1)}h
             </span>
           );
         })}
